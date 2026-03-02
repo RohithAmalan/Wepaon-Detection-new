@@ -245,3 +245,10 @@ ios/
 
 # Backup folders
 *_backup/
+
+# Binaries and Models
+*.pt
+*.apk
+frontend/public/*.apk
+node_modules/
+.venv/
