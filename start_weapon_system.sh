@@ -37,8 +37,7 @@ sleep 5
 # 2. Start Frontend in Background
 echo "[2/3] Launching Frontend (Dashboard)..."
 cd frontend
-# Use direct path to ensure local vite is found
-./node_modules/.bin/vite --host &
+npm run dev &
 cd ..
 
 # Wait for frontend

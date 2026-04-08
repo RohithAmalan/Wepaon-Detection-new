@@ -19,4 +19,5 @@ thop
 
 # Extra dependencies from detect.py
 Flask>=2.3.0
+flask-cors>=4.0.0
 paho-mqtt
