@@ -5,8 +5,13 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 class NormalHealthScreen extends StatefulWidget {
   final String ipAddress;
+  final VoidCallback onThreatDetected;
 
-  const NormalHealthScreen({super.key, required this.ipAddress});
+  const NormalHealthScreen({
+    super.key,
+    required this.ipAddress,
+    required this.onThreatDetected,
+  });
 
   @override
   State<NormalHealthScreen> createState() => _NormalHealthScreenState();
@@ -45,6 +50,10 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
               _status = data['level'] ?? 'SAFE';
               _loadingStatus = false;
             });
+            // If threat is high or medium, trigger abnormal health screen
+            if (_status == 'HIGH' || _status == 'MEDIUM') {
+              widget.onThreatDetected();
+            }
           }
         }
       } catch (_) {

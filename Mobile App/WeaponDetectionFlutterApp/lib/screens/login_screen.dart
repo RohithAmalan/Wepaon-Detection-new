@@ -149,7 +149,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     if (_flag == 1) {
-      return NormalHealthScreen(ipAddress: _ipAddress);
+      return NormalHealthScreen(
+        ipAddress: _ipAddress,
+        onThreatDetected: () => setState(() => _flag = 2),
+      );
     }
     if (_flag == 2) {
       return AbnormalHealthScreen(
