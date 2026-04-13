@@ -1,42 +1,45 @@
 import React from 'react';
-import { ShieldAlert, ShieldCheck, Shield } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Shield, Users, Swords } from 'lucide-react';
 
 const ThreatMeter = ({ status }) => {
     const { level, crowd_count, weapons, description } = status;
 
-    const getStyle = () => {
-        switch (level) {
-            case 'HIGH': return { color: 'text-danger', bg: 'bg-danger', icon: ShieldAlert, label: 'CRITICAL THREAT' };
-            case 'MEDIUM': return { color: 'text-warning', bg: 'bg-warning', icon: ShieldAlert, label: 'ELEVATED RISK' };
-            case 'LOW': return { color: 'text-blue-400', bg: 'bg-blue-500', icon: Shield, label: 'POTENTIAL THREAT' };
-            default: return { color: 'text-success', bg: 'bg-success', icon: ShieldCheck, label: 'SYSTEM SAFE' };
-        }
+    const cfg = {
+        HIGH:   { label: 'CRITICAL THREAT', icon: ShieldAlert, ring: 'ring-red-400',    text: 'text-red-600',    bg: 'bg-red-50',    badge: 'bg-red-100 text-red-700' },
+        MEDIUM: { label: 'ELEVATED RISK',   icon: ShieldAlert, ring: 'ring-amber-400',  text: 'text-amber-600',  bg: 'bg-amber-50',  badge: 'bg-amber-100 text-amber-700' },
+        LOW:    { label: 'POTENTIAL RISK',  icon: Shield,      ring: 'ring-blue-400',   text: 'text-blue-600',   bg: 'bg-blue-50',   badge: 'bg-blue-100 text-blue-700' },
+        SAFE:   { label: 'SYSTEM SAFE',     icon: ShieldCheck, ring: 'ring-emerald-400',text: 'text-emerald-600',bg: 'bg-emerald-50',badge: 'bg-emerald-100 text-emerald-700' },
     };
-
-    const style = getStyle();
-    const Icon = style.icon;
+    const s = cfg[level] || cfg.SAFE;
+    const Icon = s.icon;
 
     return (
-        <div className="glass rounded-xl p-6 flex flex-col items-center justify-center relative overflow-hidden">
-            {/* Background Glow */}
-            <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full ${style.bg} blur-[80px] opacity-20`}></div>
-
-            <div className={`p-4 rounded-full bg-dark-800 border-2 ${style.color.replace('text', 'border')} mb-4 relative z-10`}>
-                <Icon size={48} className={style.color} />
+        <div className="glass rounded-2xl p-6">
+            {/* Status Icon */}
+            <div className="flex flex-col items-center mb-5">
+                <div className={`p-4 rounded-full ring-4 ${s.ring} ${s.bg} mb-3 transition-all`}>
+                    <Icon size={44} className={s.text} />
+                </div>
+                <h2 className={`text-xl font-black tracking-widest ${s.text}`}>{s.label}</h2>
+                <p className="text-slate-500 text-xs mt-1 text-center max-w-[85%]">{description}</p>
             </div>
 
-            <h2 className={`text-2xl font-bold tracking-widest ${style.color} mb-1`}>{style.label}</h2>
-            <p className="text-white/60 text-sm mb-6 text-center max-w-[80%]">{description}</p>
-
-            <div className="grid grid-cols-2 gap-4 w-full">
-                <div className="bg-dark-800/50 rounded-lg p-3 text-center border border-white/5">
-                    <span className="block text-xs text-white/40 uppercase mb-1">Crowd Density</span>
-                    <span className="text-xl font-mono font-bold text-white">{crowd_count}</span>
+            {/* Stat chips */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="stat-chip">
+                    <div className="flex items-center justify-center gap-1.5 text-slate-400 mb-1.5">
+                        <Users size={14} />
+                        <span className="text-[11px] uppercase tracking-wider font-medium">Crowd</span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-800">{crowd_count}</span>
                 </div>
-                <div className="bg-dark-800/50 rounded-lg p-3 text-center border border-white/5">
-                    <span className="block text-xs text-white/40 uppercase mb-1">Items Detected</span>
-                    <span className="text-xl font-mono font-bold text-white">
-                        {weapons.length > 0 ? weapons.join(', ') : 'None'}
+                <div className="stat-chip">
+                    <div className="flex items-center justify-center gap-1.5 text-slate-400 mb-1.5">
+                        <Swords size={14} />
+                        <span className="text-[11px] uppercase tracking-wider font-medium">Threats</span>
+                    </div>
+                    <span className={`text-sm font-bold ${weapons?.length > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {weapons?.length > 0 ? weapons.join(', ') : 'None'}
                     </span>
                 </div>
             </div>

@@ -1,14 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark-900: #0a0a0a;
-  --color-dark-800: #121212;
-  --color-dark-700: #1e1e1e;
+  /* Brand palette – Security Slate (bright, premium, not black) */
+  --color-slate-50:  #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
 
+  /* Keep dark aliases for existing code */
+  --color-dark-900: #0f172a;
+  --color-dark-800: #1e293b;
+  --color-dark-700: #334155;
+
+  --color-primary-400: #60a5fa;
   --color-primary-500: #3b82f6;
   --color-primary-600: #2563eb;
+  --color-primary-900: #1e3a8a;
 
-  --color-danger: #ef4444;
+  --color-danger:  #ef4444;
   --color-warning: #f59e0b;
   --color-success: #10b981;
 
@@ -16,13 +27,22 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
 }
 
+/* ── Background mesh gradient (Security Slate) ── */
 body {
-  @apply bg-dark-900 text-white font-sans overflow-hidden;
   margin: 0;
   padding: 0;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #e8edf5;
+  background-image:
+    radial-gradient(ellipse at 15% 20%, rgba(59,130,246,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 75%, rgba(16,185,129,0.12) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 50%, rgba(99,102,241,0.08) 0%, transparent 70%);
+  color: #0f172a;
+  overflow: hidden;
 }
 
 #root {
@@ -31,25 +51,48 @@ body {
   flex-direction: column;
 }
 
-/* Glassmorphism utility */
+/* ── Glassmorphism card (light mode) ── */
 .glass {
-  @apply bg-white/10 backdrop-blur-md border border-white/10;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 4px 32px rgba(15, 23, 42, 0.08);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+/* Sidebar glass */
+.glass-sidebar {
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border-right: 1px solid rgba(255, 255, 255, 0.7);
 }
 
-::-webkit-scrollbar-track {
-  background: #0a0a0a;
+/* ── Stat chip ── */
+.stat-chip {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.06);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
+
+/* ── Action button animations ── */
+.action-btn {
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+.action-btn:active {
+  transform: scale(0.96);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
+/* ── Threat text colors ── */
+.text-safe   { color: #10b981; }
+.text-medium { color: #f59e0b; }
+.text-high   { color: #ef4444; }

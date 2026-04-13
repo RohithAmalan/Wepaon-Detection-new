@@ -522,6 +522,36 @@ def api_login():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+def _mqtt_publish_action(payload: str):
+    """Helper: publish a one-shot MQTT action message."""
+    import paho.mqtt.client as _mqtt_client
+    try:
+        c = _mqtt_client.Client(mqtt.CallbackAPIVersion.VERSION1, f"dashboard_action_{int(time.time())}")
+        c.connect("broker.hivemq.com", 1883, 10)
+        c.publish("WEAPON-NT", payload, qos=1)
+        c.disconnect()
+        return True
+    except Exception as e:
+        print(f"[MQTT Action] Failed: {e}")
+        return False
+
+@app.route("/api/trigger_alarm", methods=['POST'])
+def api_trigger_alarm():
+    """Trigger the alarm via MQTT (publishes '*' to WEAPON-NT)."""
+    success = _mqtt_publish_action("*")
+    if success:
+        return jsonify({"status": "success", "message": "Alarm triggered"})
+    return jsonify({"status": "error", "message": "MQTT publish failed"}), 500
+
+@app.route("/api/close_gate", methods=['POST'])
+def api_close_gate():
+    """Close the gate via MQTT (publishes '$' to WEAPON-NT)."""
+    success = _mqtt_publish_action("$")
+    if success:
+        return jsonify({"status": "success", "message": "Gate closed"})
+    return jsonify({"status": "error", "message": "MQTT publish failed"}), 500
+
+
 @app.route("/video_feed/<int:source_id>")
 def video_feed_source(source_id):
     return Response(generate_source(source_id),
