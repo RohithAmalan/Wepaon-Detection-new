@@ -22,20 +22,35 @@ function App() {
   }, [status.level]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    // 1. Poll live status for the threat meter & emergency popup
+    const fetchStatus = () => {
       fetch('/api/status')
         .then(res => res.json())
+        .then(data => setStatus(data))
+        .catch(err => console.error(err));
+    };
+
+    // 2. Poll the database for permanent logs
+    const fetchLogs = () => {
+      fetch('/api/logs')
+        .then(res => res.json())
         .then(data => {
-          setStatus(data);
-          if (data.level !== 'SAFE') {
-            setAlerts(prev => {
-              const newAlert = { ...data, id: Date.now() };
-              return [newAlert, ...prev].slice(0, 10);
-            });
+          if (data.status === 'success') {
+            setAlerts(data.logs);
           }
         })
         .catch(err => console.error(err));
-    }, 1000);
+    };
+
+    const interval = setInterval(() => {
+      fetchStatus();
+      fetchLogs();
+    }, 1500); // 1.5 seconds
+
+    // Initial fetch
+    fetchStatus();
+    fetchLogs();
+
     return () => clearInterval(interval);
   }, []);
 
@@ -207,7 +222,7 @@ function App() {
                       <div key={i} className={`p-3 rounded-xl border-l-4 ${alert.level === 'HIGH' ? 'border-red-500 bg-red-50' : 'border-amber-400 bg-amber-50'}`}>
                         <div className="flex justify-between mb-0.5">
                           <span className={`text-xs font-bold ${alert.level === 'HIGH' ? 'text-red-600' : 'text-amber-600'}`}>{alert.level} THREAT</span>
-                          <span className="text-[10px] text-slate-400">{new Date(alert.timestamp * 1000).toLocaleTimeString()}</span>
+                          <span className="text-[10px] text-slate-400">{alert.timestamp}</span>
                         </div>
                         <p className="text-sm text-slate-700">{alert.description}</p>
                       </div>
@@ -228,7 +243,7 @@ function App() {
                     <div key={i} className={`p-4 rounded-xl border-l-4 ${alert.level === 'HIGH' ? 'border-red-500 bg-red-50' : 'border-amber-400 bg-amber-50'}`}>
                       <div className="flex justify-between mb-1">
                         <span className={`text-sm font-bold ${alert.level === 'HIGH' ? 'text-red-700' : 'text-amber-700'}`}>{alert.level} THREAT</span>
-                        <span className="text-xs text-slate-400">{new Date(alert.timestamp * 1000).toLocaleTimeString()}</span>
+                        <span className="text-xs text-slate-400">{alert.timestamp}</span>
                       </div>
                       <p className="text-sm text-slate-700">{alert.description}</p>
                       {alert.weapons?.length > 0 && <p className="text-xs text-slate-500 mt-1">Weapons: {alert.weapons.join(', ')}</p>}

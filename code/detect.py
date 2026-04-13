@@ -24,6 +24,40 @@ log.setLevel(logging.ERROR) # Disable request logging
 import threading
 
 import socket
+import sqlite3
+import datetime
+
+# --- Database Setup ---
+DB_NAME = "threat_logs.db"
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS logs
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  timestamp TEXT,
+                  level TEXT,
+                  crowd_count INTEGER,
+                  weapons TEXT,
+                  description TEXT)''')
+    conn.commit()
+    conn.close()
+
+def log_threat_to_db(level, crowd_count, weapons, description):
+    # Only log HIGH or MEDIUM threats
+    if level not in ["HIGH", "MEDIUM"]:
+        return
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    weapons_str = ", ".join(weapons) if isinstance(weapons, list) else str(weapons)
+    c.execute("INSERT INTO logs (timestamp, level, crowd_count, weapons, description) VALUES (?, ?, ?, ?, ?)",
+              (now_str, level, crowd_count, weapons_str, description))
+    conn.commit()
+    conn.close()
+
+init_db()
+# ----------------------
+
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(("8.8.8.8", 80))
 ip_address = s.getsockname()[0]
@@ -382,7 +416,7 @@ def web_stream(frameCount):
             smoothed_has_weapon = 1 if web_stream.persistence_counter > 0 else 0
             
             # Update Global Status
-            latest_threat_status = {
+            current_status_dict = {
                 "level": analysis['threat_level'] if raw_has_weapon else ("MEDIUM" if smoothed_has_weapon else "SAFE"),
                 "crowd_count": analysis['crowd_count'],
                 "weapons": analysis['weapons_detected'],
@@ -390,6 +424,19 @@ def web_stream(frameCount):
                 "timestamp": time.time(),
                 "source_index": i
             }
+
+            # Avoid logging exactly duplicate threats within a small time window (e.g. 5 seconds)
+            if current_status_dict['level'] in ['HIGH', 'MEDIUM']:
+                if not hasattr(web_stream, "last_db_log_time") or (time.time() - getattr(web_stream, "last_db_log_time", 0) > 10):
+                    log_threat_to_db(
+                        current_status_dict["level"], 
+                        current_status_dict["crowd_count"], 
+                        current_status_dict["weapons"], 
+                        current_status_dict["description"]
+                    )
+                    web_stream.last_db_log_time = time.time()
+
+            latest_threat_status = current_status_dict
 
             # Print results & Existing logic upgrade
             if len(det):
@@ -603,6 +650,32 @@ def api_close_gate():
     if success:
         return jsonify({"status": "success", "message": "Gate closed"})
     return jsonify({"status": "error", "message": "MQTT publish failed"}), 500
+
+
+@app.route("/api/logs", methods=['GET'])
+def api_logs():
+    """Fetch the latest 50 threat logs from SQLite."""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM logs ORDER BY id DESC LIMIT 50")
+        rows = c.fetchall()
+        
+        logs = []
+        for r in rows:
+            logs.append({
+                "id": r["id"],
+                "timestamp": r["timestamp"],
+                "level": r["level"],
+                "crowd_count": r["crowd_count"],
+                "weapons": r["weapons"].split(", ") if r["weapons"] else [],
+                "description": r["description"]
+            })
+        conn.close()
+        return jsonify({"status": "success", "logs": logs})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/video_feed/<int:source_id>")
