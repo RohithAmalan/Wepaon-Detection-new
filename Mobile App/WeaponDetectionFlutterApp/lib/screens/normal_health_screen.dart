@@ -18,24 +18,39 @@ class NormalHealthScreen extends StatefulWidget {
 }
 
 class _NormalHealthScreenState extends State<NormalHealthScreen> {
-  late final WebViewController _webViewController;
+  // Camera feed 0 = Laptop, 1 = iPhone
+  int _selectedCam = 0;
+  late WebViewController _webViewController;
+
   int _crowdCount = 0;
   String _status = 'SAFE';
   bool _loadingStatus = true;
 
+  static const _camLabels = ['📍 Main Entrance (Laptop)', '📍 Back Gate (iPhone)'];
+  static const _feedPaths = ['video_feed', 'video_feed/1'];
+
   @override
   void initState() {
     super.initState();
-
-    // Load live MJPEG stream
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse('http://${widget.ipAddress}:8000/video_feed'));
-
+    _initWebView(_selectedCam);
     _pollStatus();
   }
 
-  /// Poll /api/status every 2 seconds for crowd count & threat level
+  void _initWebView(int camIndex) {
+    final url = 'http://${widget.ipAddress}:8000/${_feedPaths[camIndex]}';
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadRequest(Uri.parse(url));
+  }
+
+  void _switchCamera(int idx) {
+    if (idx == _selectedCam) return;
+    setState(() {
+      _selectedCam = idx;
+      _initWebView(idx);
+    });
+  }
+
   Future<void> _pollStatus() async {
     while (mounted) {
       try {
@@ -50,7 +65,6 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
               _status = data['level'] ?? 'SAFE';
               _loadingStatus = false;
             });
-            // If threat is high or medium, trigger abnormal health screen
             if (_status == 'HIGH' || _status == 'MEDIUM') {
               widget.onThreatDetected();
             }
@@ -65,192 +79,225 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
 
   Color get _statusColor {
     switch (_status) {
-      case 'HIGH':
-        return Colors.red;
-      case 'MEDIUM':
-        return Colors.orange;
-      default:
-        return const Color(0xFF3dcc8c);
+      case 'HIGH':    return Colors.red;
+      case 'MEDIUM':  return Colors.orange;
+      default:        return const Color(0xFF3dcc8c);
     }
   }
 
   IconData get _statusIcon {
     switch (_status) {
-      case 'HIGH':
-        return Icons.warning_amber_rounded;
-      case 'MEDIUM':
-        return Icons.warning_outlined;
-      default:
-        return Icons.shield;
+      case 'HIGH':    return Icons.warning_amber_rounded;
+      case 'MEDIUM':  return Icons.warning_outlined;
+      default:        return Icons.shield;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0f1117),
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Header ──
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                children: [
-                  Icon(_statusIcon, color: _statusColor, size: 26),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'LIVE MONITORING',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _statusColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _statusColor, width: 1),
-                    ),
-                    child: Text(
-                      _loadingStatus ? '...' : _status,
-                      style: TextStyle(
-                        color: _statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Live Camera WebView ──
-            Container(
-              height: size.height * 0.42,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _statusColor.withOpacity(0.5), width: 2),
-                color: Colors.black,
-              ),
-              clipBehavior: Clip.hardEdge,
-              child: Stack(
-                children: [
-                  WebViewWidget(controller: _webViewController),
-                  // LIVE badge
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, color: Colors.white, size: 8),
-                          SizedBox(width: 5),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ── Status Cards ──
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  _statCard(
-                    icon: Icons.people_outline,
-                    label: 'Crowd Count',
-                    value: _loadingStatus ? '--' : '$_crowdCount',
-                    color: Colors.blueAccent,
-                  ),
-                  const SizedBox(width: 12),
-                  _statCard(
-                    icon: _statusIcon,
-                    label: 'Threat Level',
-                    value: _loadingStatus ? '--' : _status,
-                    color: _statusColor,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ── Detection Status Banner ──
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3dcc8c).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF3dcc8c).withOpacity(0.4)),
-                ),
-                child: const Row(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // ── Header ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Row(
                   children: [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF3dcc8c), size: 28),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'NO ASSAULT DETECTED',
-                            style: TextStyle(
-                              color: Color(0xFF3dcc8c),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'System is actively monitoring. All clear.',
-                            style: TextStyle(color: Colors.white38, fontSize: 12),
-                          ),
-                        ],
+                    Icon(_statusIcon, color: _statusColor, size: 26),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'LIVE MONITORING',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _statusColor, width: 1),
+                      ),
+                      child: Text(
+                        _loadingStatus ? '...' : _status,
+                        style: TextStyle(
+                          color: _statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+
+              // ── Camera Selector Tabs ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: List.generate(_camLabels.length, (i) {
+                    final selected = i == _selectedCam;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => _switchCamera(i),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: EdgeInsets.only(right: i == 0 ? 6 : 0, left: i == 1 ? 6 : 0),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selected ? _statusColor : Colors.white10,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selected ? _statusColor : Colors.white24,
+                            ),
+                          ),
+                          child: Text(
+                            _camLabels[i],
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: selected ? Colors.white : Colors.white54,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // ── Live Camera WebView ──
+              Container(
+                height: size.height * 0.40,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _statusColor.withOpacity(0.5), width: 2),
+                  color: Colors.black,
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: Stack(
+                  children: [
+                    WebViewWidget(controller: _webViewController),
+                    // LIVE badge
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, color: Colors.white, size: 8),
+                            SizedBox(width: 5),
+                            Text('LIVE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Camera label badge
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'CAM ${_selectedCam + 1}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Status Cards ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    _statCard(
+                      icon: Icons.people_outline,
+                      label: 'Crowd Count',
+                      value: _loadingStatus ? '--' : '$_crowdCount',
+                      color: Colors.blueAccent,
+                    ),
+                    const SizedBox(width: 12),
+                    _statCard(
+                      icon: _statusIcon,
+                      label: 'Threat Level',
+                      value: _loadingStatus ? '--' : _status,
+                      color: _statusColor,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Detection Status Banner ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3dcc8c).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF3dcc8c).withOpacity(0.4)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.check_circle_outline, color: Color(0xFF3dcc8c), size: 28),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'NO ASSAULT DETECTED',
+                              style: TextStyle(color: Color(0xFF3dcc8c), fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            SizedBox(height: 2),
+                            Text('System is actively monitoring. All clear.',
+                              style: TextStyle(color: Colors.white38, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _statCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
+  Widget _statCard({required IconData icon, required String label, required String value, required Color color}) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -264,19 +311,9 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
           children: [
             Icon(icon, color: color, size: 22),
             const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
-            ),
+            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
             const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-              ),
-            ),
+            Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 22)),
           ],
         ),
       ),

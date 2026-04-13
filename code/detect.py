@@ -68,6 +68,22 @@ import requests
 import json
 from threat_analyzer import ThreatAnalyzer
 
+# --- Secure Credentials from .env ---
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, will fallback to defaults
+
+import os
+ADMIN_USER = os.environ.get("WEAPON_ADMIN_USER", "admin")
+ADMIN_PASS = os.environ.get("WEAPON_ADMIN_PASS", "password")
+MQTT_BROKER_HOST = os.environ.get("MQTT_BROKER", "broker.hivemq.com")
+MQTT_BROKER_PORT = int(os.environ.get("MQTT_PORT", 1883))
+NOTI_TOPIC = os.environ.get("MQTT_TOPIC_NOTIFICATION", "WEAPON-NT")
+SHOP_TOPIC = os.environ.get("MQTT_TOPIC_SHOP", "SHOP-TOPIC")
+# -------------------------------------
+
 # Global storage for frames and status
 lock = threading.Lock()
 camera_frames = {}  # { source_index_or_id: frame }
@@ -607,14 +623,14 @@ def api_login():
         username = data.get('username')
         password = data.get('password')
         
-        # Simple Hardcoded Secure Logic (Replace with DB later)
-        if username == "admin" and password == "password":
+        # Load credentials from .env (never hardcoded)
+        if username == ADMIN_USER and password == ADMIN_PASS:
             return jsonify({
                 "status": "success", 
                 "message": "Login Successful",
                 "topics": {
-                    "notification": "WEAPON-NT",
-                    "shop": "SHOP-TOPIC"
+                    "notification": NOTI_TOPIC,
+                    "shop": SHOP_TOPIC
                 }
             })
         else:

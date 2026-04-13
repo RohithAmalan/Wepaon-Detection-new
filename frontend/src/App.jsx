@@ -170,14 +170,35 @@ function App() {
         <div className="flex-1 overflow-auto p-6 lg:p-8">
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left: Video feed */}
+              {/* Left: Dual Video feeds */}
               <div className="lg:col-span-2 space-y-5">
-                <div className={`glass rounded-2xl overflow-hidden border-2 transition-colors ${tc.border}`}>
-                  <VideoFeed
-                    src={`http://${window.location.hostname}:8000/video_feed`}
-                    label="Main Camera Feed (Fused)"
-                    isActive
-                  />
+                {/* Two camera grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Camera 0 — Laptop Webcam */}
+                  <div className={`glass rounded-2xl overflow-hidden border-2 transition-colors ${tc.border}`}>
+                    <div className="bg-slate-800 px-3 py-1.5 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-white text-xs font-semibold tracking-wider">📍 MAIN ENTRANCE — LIVE</span>
+                    </div>
+                    <VideoFeed
+                      src={`http://${window.location.hostname}:8000/video_feed`}
+                      label="Laptop Webcam"
+                      isActive
+                    />
+                  </div>
+
+                  {/* Camera 1 — iPhone IP Camera */}
+                  <div className={`glass rounded-2xl overflow-hidden border-2 transition-colors ${tc.border}`}>
+                    <div className="bg-slate-800 px-3 py-1.5 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-white text-xs font-semibold tracking-wider">📍 BACK GATE — LIVE</span>
+                    </div>
+                    <VideoFeed
+                      src={`http://${window.location.hostname}:8000/video_feed/1`}
+                      label="iPhone IP Camera"
+                      isActive
+                    />
+                  </div>
                 </div>
 
                 {/* Action buttons — always visible below feed */}

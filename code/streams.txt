@@ -1,0 +1,15 @@
+# Camera Streams Configuration
+# Add one source per line.
+# Use '0' for the built-in laptop webcam.
+# Use a full HTTP URL for a phone IP camera (e.g. IP Webcam or DroidCam app).
+# Example iPhone stream: http://192.168.1.5:8080/video
+#
+# HOW TO CONNECT YOUR IPHONE:
+# 1. Install "IP Webcam" from the App Store on your iPhone
+# 2. Open the app and tap "Start server"
+# 3. Note the IP shown (e.g. 192.168.1.5:8080)
+# 4. Replace the line below with: http://YOUR_IPHONE_IP:8080/video
+# 5. Make sure your iPhone and MacBook are on the SAME Wi-Fi network
+
+0
+# http://IPHONE_IP:8080/video

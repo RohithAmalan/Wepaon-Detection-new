@@ -58,9 +58,14 @@ if [ ! -d "frontend/node_modules" ]; then
     cd frontend && npm install && cd ..
 fi
 
-# Default to source 0 (Working now)
+# Use streams.txt if it exists and no --source was passed
 if [[ "$@" != *"--source"* ]]; then
-    ./run.sh --source 0 "$@" &
+    if [ -f "code/streams.txt" ]; then
+        echo "[INFO] Using streams.txt for multi-camera support..."
+        ./run.sh --source code/streams.txt "$@" &
+    else
+        ./run.sh --source 0 "$@" &
+    fi
 else
     ./run.sh "$@" &
 fi
