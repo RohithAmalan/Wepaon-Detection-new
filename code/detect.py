@@ -271,28 +271,69 @@ def web_stream(frameCount):
             save_path = str(save_dir / p.name)  # img.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            # Custom Thresholds per class to reduce false positives/negatives
+            # ── FILTER 1: Confidence Thresholds (Raised weapon thresholds to cut false positives) ──
             custom_thresholds = {
-                'person': 0.65,  # Supress people unless very confident to reduce UI clutter
-                'knife': 0.15,   # Extremely low threshold to catch any potential bladed weapon
-                'pistol': 0.25,  # Very low threshold to catch any gun shape
-                'rifle': 0.25,
-                'gun': 0.25,
-                'smartphone': 0.70 # Heavy penalty for phones since they look like guns
+                'person':     0.65,  # Keep person threshold high to reduce clutter
+                'knife':      0.50,  # Raised from 0.15 → eliminates ghost knife detections
+                'pistol':     0.50,  # Raised from 0.25 → needs clear gun shape
+                'rifle':      0.50,  # Raised from 0.25
+                'gun':        0.50,  # Raised from 0.25
+                'smartphone': 0.80,  # Heavy penalty – phones look like guns
             }
-            
-            # Filter detections based on custom thresholds
+
+            # Apply confidence filter
             filtered_det = []
+            person_boxes = []   # track all person bboxes for proximity check
+            weapon_boxes = []   # track weapon bboxes for proximity check
+            WEAPON_CLASSES = {'knife', 'pistol', 'rifle', 'gun'}
+
             for *xyxy, conf, cls in det:
                 c_name = names[int(cls)]
-                req_conf = custom_thresholds.get(c_name, 0.45) # Other classes default to 0.45
-                
-                # Special condition: Boost confidence of weapons
-                if c_name in ['knife', 'pistol', 'rifle', 'gun'] and conf >= req_conf:
+                req_conf = custom_thresholds.get(c_name, 0.45)
+                if float(conf) >= req_conf:
                     filtered_det.append([*xyxy, conf, cls])
-                elif conf >= req_conf:
-                    filtered_det.append([*xyxy, conf, cls])
-            
+                    if c_name == 'person':
+                        person_boxes.append([float(v) for v in xyxy])
+                    elif c_name in WEAPON_CLASSES:
+                        weapon_boxes.append([float(v) for v in xyxy])
+
+            # ── FILTER 2: Person-Weapon Proximity Check ──
+            # A weapon that is NOT near any person is almost certainly a false positive
+            # (guns don't float in the air). Expand person box by 30% before checking.
+            def boxes_are_near(wbox, pbox, margin=0.30):
+                """Returns True if weapon bbox overlaps with margin-expanded person bbox."""
+                wx1, wy1, wx2, wy2 = wbox
+                px1, py1, px2, py2 = pbox
+                pw = px2 - px1
+                ph = py2 - py1
+                px1e = px1 - margin * pw
+                py1e = py1 - margin * ph
+                px2e = px2 + margin * pw
+                py2e = py2 + margin * ph
+                # Check for overlap
+                return not (wx2 < px1e or wx1 > px2e or wy2 < py1e or wy1 > py2e)
+
+            if person_boxes and weapon_boxes:
+                # Keep only weapons that are near at least one person
+                valid_weapon_indices = set()
+                for wi, wbox in enumerate(weapon_boxes):
+                    for pbox in person_boxes:
+                        if boxes_are_near(wbox, pbox):
+                            valid_weapon_indices.add(wi)
+                            break
+                # Rebuild filtered_det: keep all persons + only validated weapons
+                new_filtered = []
+                w_idx = 0
+                for item in filtered_det:
+                    c_name = names[int(item[-1])]
+                    if c_name in WEAPON_CLASSES:
+                        if w_idx in valid_weapon_indices:
+                            new_filtered.append(item)
+                        w_idx += 1
+                    else:
+                        new_filtered.append(item)
+                filtered_det = new_filtered
+
             det = torch.tensor(filtered_det) if len(filtered_det) > 0 else torch.tensor([])
 
             # Re-parse classes after filtering
@@ -315,17 +356,29 @@ def web_stream(frameCount):
                     'description': 'Safe'
                 }
 
-            # Persistence Logic (Smoothing)
+            # ── FILTER 3: Three-Consecutive-Frame Confirmation Rule ──
+            # Only trigger an alarm once a weapon is seen in 3 frames IN A ROW.
+            # This eliminates single-frame ghost detections (the biggest source of false alarms).
+            if not hasattr(web_stream, "confirm_counter"):
+                web_stream.confirm_counter = 0   # counts consecutive weapon frames
             if not hasattr(web_stream, "persistence_counter"):
-                    web_stream.persistence_counter = 0
+                web_stream.persistence_counter = 0
 
             raw_has_weapon = 1 if len(analysis['weapons_detected']) > 0 else 0
-            
+
             if raw_has_weapon:
-                web_stream.persistence_counter = 8 # Reduced to 8 frames (~0.25s) for snappier updates
+                web_stream.confirm_counter = min(web_stream.confirm_counter + 1, 3)
+            else:
+                web_stream.confirm_counter = 0   # reset immediately if no weapon seen
+
+            # Only accept as CONFIRMED if seen 3 or more frames in a row
+            confirmed_weapon = 1 if web_stream.confirm_counter >= 3 else 0
+
+            if confirmed_weapon:
+                web_stream.persistence_counter = 8  # hold alert for ~8 more frames after loss
             elif web_stream.persistence_counter > 0:
                 web_stream.persistence_counter -= 1
-                
+
             smoothed_has_weapon = 1 if web_stream.persistence_counter > 0 else 0
             
             # Update Global Status
