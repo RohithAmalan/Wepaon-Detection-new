@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
+import '../main.dart' show showWeaponAlert;
 
 class NormalHealthScreen extends StatefulWidget {
   final String ipAddress;
@@ -25,9 +26,18 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
   int _crowdCount = 0;
   String _status = 'SAFE';
   bool _loadingStatus = true;
+  bool _notificationSentForCurrentThreat = false;
 
-  static const _camLabels = ['📍 Main Entrance (Laptop)', '📍 Back Gate (iPhone)'];
+  static const _camLabels = ['Main Entrance', 'Back Gate'];
   static const _feedPaths = ['video_feed', 'video_feed/1'];
+
+  // ── Light theme colours ──
+  static const _bg        = Color(0xFFF5F7FA);
+  static const _card      = Colors.white;
+  static const _textPrim  = Color(0xFF1A1A2E);
+  static const _textSub   = Color(0xFF6B7280);
+  static const _safe      = Color(0xFF10B981);
+  static const _accent    = Color(0xFF1A73E8);
 
   @override
   void initState() {
@@ -40,6 +50,7 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
     final url = 'http://${widget.ipAddress}:8000/${_feedPaths[camIndex]}';
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
       ..loadRequest(Uri.parse(url));
   }
 
@@ -60,14 +71,29 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (mounted) {
-            setState(() {
-              _crowdCount = data['crowd_count'] ?? 0;
-              _status = data['level'] ?? 'SAFE';
-              _loadingStatus = false;
-            });
-            if (_status == 'HIGH' || _status == 'MEDIUM') {
+            final newStatus = data['level'] ?? 'SAFE';
+            final newCount  = data['crowd_count'] ?? 0;
+            final desc      = data['description'] ?? 'Weapon Detected';
+
+            // Trigger notification and navigate when threat detected
+            if ((newStatus == 'HIGH' || newStatus == 'MEDIUM') && !_notificationSentForCurrentThreat) {
+              _notificationSentForCurrentThreat = true;
+              // Fire system notification
+              showWeaponAlert(level: newStatus, description: desc);
+              // Navigate to emergency screen
               widget.onThreatDetected();
             }
+
+            // Reset flag when system goes back to SAFE
+            if (newStatus == 'SAFE') {
+              _notificationSentForCurrentThreat = false;
+            }
+
+            setState(() {
+              _status = newStatus;
+              _crowdCount = newCount;
+              _loadingStatus = false;
+            });
           }
         }
       } catch (_) {
@@ -81,7 +107,7 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
     switch (_status) {
       case 'HIGH':    return Colors.red;
       case 'MEDIUM':  return Colors.orange;
-      default:        return const Color(0xFF3dcc8c);
+      default:        return _safe;
     }
   }
 
@@ -89,59 +115,76 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
     switch (_status) {
       case 'HIGH':    return Icons.warning_amber_rounded;
       case 'MEDIUM':  return Icons.warning_outlined;
-      default:        return Icons.shield;
+      default:        return Icons.shield_outlined;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0f1117),
+      backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Header ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                child: Row(
-                  children: [
-                    Icon(_statusIcon, color: _statusColor, size: 26),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'LIVE MONITORING',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                      ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _statusColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _statusColor, width: 1),
-                      ),
-                      child: Text(
-                        _loadingStatus ? '...' : _status,
-                        style: TextStyle(
-                          color: _statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                    child: Icon(Icons.videocam_outlined, color: _accent, size: 24),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Live Monitoring',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textPrim)),
+                      Text('Real-time threat detection',
+                        style: TextStyle(fontSize: 12, color: _textSub)),
+                    ],
+                  ),
+                  const Spacer(),
+                  // Status pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _statusColor.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_statusIcon, size: 14, color: _statusColor),
+                        const SizedBox(width: 5),
+                        Text(
+                          _loadingStatus ? '...' : _status,
+                          style: TextStyle(color: _statusColor, fontWeight: FontWeight.bold, fontSize: 12),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
 
-              // ── Camera Selector Tabs ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              const SizedBox(height: 16),
+
+              // ── Camera Selector ──
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9EEF6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(4),
                 child: Row(
                   children: List.generate(_camLabels.length, (i) {
                     final selected = i == _selectedCam;
@@ -150,23 +193,25 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
                         onTap: () => _switchCamera(i),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          margin: EdgeInsets.only(right: i == 0 ? 6 : 0, left: i == 1 ? 6 : 0),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
                           decoration: BoxDecoration(
-                            color: selected ? _statusColor : Colors.white10,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: selected ? _statusColor : Colors.white24,
-                            ),
+                            color: selected ? Colors.white : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: selected ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : [],
                           ),
-                          child: Text(
-                            _camLabels[i],
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: selected ? Colors.white : Colors.white54,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.videocam, size: 14,
+                                color: selected ? _accent : _textSub),
+                              const SizedBox(width: 5),
+                              Text(_camLabels[i],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: selected ? _accent : _textSub,
+                                )),
+                            ],
                           ),
                         ),
                       ),
@@ -177,14 +222,14 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
 
               const SizedBox(height: 12),
 
-              // ── Live Camera WebView ──
+              // ── Live Camera Feed ──
               Container(
-                height: size.height * 0.40,
-                margin: const EdgeInsets.symmetric(horizontal: 16),
+                height: size.height * 0.38,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _statusColor.withOpacity(0.5), width: 2),
+                  border: Border.all(color: _statusColor.withOpacity(0.4), width: 2),
                   color: Colors.black,
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0,4))],
                 ),
                 clipBehavior: Clip.hardEdge,
                 child: Stack(
@@ -192,10 +237,9 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
                     WebViewWidget(controller: _webViewController),
                     // LIVE badge
                     Positioned(
-                      top: 10,
-                      left: 10,
+                      top: 10, left: 10,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.red,
                           borderRadius: BorderRadius.circular(6),
@@ -203,93 +247,89 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.circle, color: Colors.white, size: 8),
-                            SizedBox(width: 5),
-                            Text('LIVE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                            Icon(Icons.circle, color: Colors.white, size: 7),
+                            SizedBox(width: 4),
+                            Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
                     ),
-                    // Camera label badge
+                    // CAM label badge
                     Positioned(
-                      top: 10,
-                      right: 10,
+                      top: 10, right: 10,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          'CAM ${_selectedCam + 1}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
+                        child: Text('CAM ${_selectedCam + 1}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-              // ── Status Cards ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              // ── Stats Cards ──
+              Row(
+                children: [
+                  _statCard(
+                    icon: Icons.people_alt_outlined,
+                    label: 'Crowd',
+                    value: _loadingStatus ? '--' : '$_crowdCount people',
+                    color: _accent,
+                  ),
+                  const SizedBox(width: 12),
+                  _statCard(
+                    icon: _statusIcon,
+                    label: 'Threat',
+                    value: _loadingStatus ? '--' : _status,
+                    color: _statusColor,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // ── Status Banner ──
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _safe.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _safe.withOpacity(0.3)),
+                ),
                 child: Row(
                   children: [
-                    _statCard(
-                      icon: Icons.people_outline,
-                      label: 'Crowd Count',
-                      value: _loadingStatus ? '--' : '$_crowdCount',
-                      color: Colors.blueAccent,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _safe.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check_circle_outline, color: _safe, size: 24),
                     ),
                     const SizedBox(width: 12),
-                    _statCard(
-                      icon: _statusIcon,
-                      label: 'Threat Level',
-                      value: _loadingStatus ? '--' : _status,
-                      color: _statusColor,
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('NO THREAT DETECTED',
+                            style: TextStyle(color: _safe, fontWeight: FontWeight.bold, fontSize: 14)),
+                          SizedBox(height: 2),
+                          Text('System is actively scanning all camera feeds.',
+                            style: TextStyle(color: _textSub, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 16),
-
-              // ── Detection Status Banner ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3dcc8c).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF3dcc8c).withOpacity(0.4)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.check_circle_outline, color: Color(0xFF3dcc8c), size: 28),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'NO ASSAULT DETECTED',
-                              style: TextStyle(color: Color(0xFF3dcc8c), fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            SizedBox(height: 2),
-                            Text('System is actively monitoring. All clear.',
-                              style: TextStyle(color: Colors.white38, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -300,20 +340,21 @@ class _NormalHealthScreenState extends State<NormalHealthScreen> {
   Widget _statCard({required IconData icon, required String label, required String value, required Color color}) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: _card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.4)),
+          border: Border.all(color: color.withOpacity(0.2)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 22),
+            Icon(icon, color: color, size: 20),
             const SizedBox(height: 8),
-            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 22)),
+            Text(label, style: const TextStyle(color: _textSub, fontSize: 12)),
+            const SizedBox(height: 3),
+            Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
       ),
