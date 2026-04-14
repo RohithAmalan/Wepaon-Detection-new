@@ -62,7 +62,7 @@ fi
 if [[ "$@" != *"--source"* ]]; then
     if [ -f "code/streams.txt" ]; then
         echo "[INFO] Using streams.txt for multi-camera support..."
-        ./run.sh --source code/streams.txt "$@" &
+        ./run.sh --source streams.txt "$@" &
     else
         ./run.sh --source 0 "$@" &
     fi
